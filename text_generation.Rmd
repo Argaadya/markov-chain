@@ -51,7 +51,9 @@ The following text is generated using the natural language processing model arch
 knitr::include_graphics("asset/gpt.png")
 ```
 
-GPT-2 is a very sophisticated model that use more than 8 million web pages as it training dataset. However, due to the great potential to be misused, the developers decided not to release the trained model. An alternative to create our own custom text generator is using the Recurrent Neural Network and it's LSTM companion[^6]. However, there is a simpler approach to create a text generator using a model called Markov Chain[^7]. Markov Chain is a mathematical model of stochastic process that predicts the condition of the next state (e.g. will it rain tomorrow?) based on the condition of the previous one. Using this principle, the Markov Chain can predict the next word based on the last word typed. Victor Powell[^8] has dedicated a great website to visualize how Markov Chains work.
+GPT-2 is a very sophisticated model that use more than 8 million web pages as it training dataset. However, due to the great potential to be misused, the developers decided not to release the trained model. An alternative to create our own custom text generator is using the Recurrent Neural Network and it's LSTM companion[^6]. However, there is a simpler approach to create a text generator using a model called Markov Chain[^7]. 
+
+Markov Chain is a mathematical model of stochastic process that predicts the condition of the next state (e.g. will it rain tomorrow?) based on the condition of the previous one. Using this principle, the Markov Chain can predict the next word based on the last word typed. Victor Powell[^8] has dedicated a great website to visualize how Markov Chains work.
 
 Through this article, we will explore the mechanism behind Markov Chains and how to apply it to create a text generator.
 
@@ -61,6 +63,7 @@ The goal of this article is to help you:
 
 * Understand the concept of Markov Chain
 * Understand the concept of transition probability matrix
+* Implement Markov Chain in several business cases
 * Implement Markov Chain to create a text generator
 
 ## Library and Setup
@@ -83,20 +86,277 @@ library(markovchain)
 
 ## General Concept
 
+Markov Chain is a mathematical model of stochastic process that predicts the condition of the next state based on the previous state. 
+
+Let's say we have a data of weather condition for the past 30 days.
+
+```{r echo=FALSE}
+weather <- c("sunny", "rain", "cloudy")
+
+set.seed(123)
+weather_data <- sample(weather, 100, replace = T)
+head(weather_data, 10)
+```
+
+If today weather is sunny, what is the probability that tomorrow will be sunny again? We simply just need to calculate how many times if today is sunny and the next day is sunny as well from the past data.
+
+```{r echo=FALSE}
+embed(weather_data, 2)[, 2:1] %>% 
+   as.data.frame() %>% 
+   rename(current = V1, next_day = V2) %>% 
+   filter(current == "sunny") %>% 
+   arrange(next_day) %>% 
+   count(current, next_day)
+```
+
+Based on the data, if current day is sunny,  there are 2 occurences that the next day would be cloudy, 3 occurences that the next day is rain, and 3 occurences as well that the next day is sunny. Based on the data, we can directly calculate the probability. For example, if the current day is sunny, the probability that the next day would be sunny as well is:
+
+$$P(tomorrow = cloudy|today = sunny) = \frac{2}{8} = 0.250$$
+
+This probability is called as the **Transition Probability**, since it calculate the transition between the previous state (today is sunny) toward the next state (tomorrow will be cloudy).
+
+```{r echo=FALSE}
+embed(weather_data, 2)[, 2:1] %>% 
+   as.data.frame() %>% 
+   rename(current = V1, next_day = V2) %>% 
+   filter(current == "sunny") %>% 
+   pull(next_day) %>% 
+   table("Probability of each weather tomorrow if today is sunny" = .) %>% prop.table()
+```
+
+After we calculate all of the possible transition probability, we can plot them into a graph.
+
+```{r echo=FALSE}
+markov_weather <- markovchainFit(weather_data)
+set.seed(2)
+plot(markov_weather$estimate)
+```
+
+The arrow indicate the transition toward the next state while the number shows the probability of those transition. For example, there is a probability of 0.45 for transition from rain today toward cloudy tommorow. If the next state is the same as the current state, the arrow will make a loop toward itself, like the 30% probability of rain today to rain tommorow.
 
 ## Transition Probability Matrix
+
+The Markov Chains is often represented as a transition probability matrix, with each row indicate the current states while each column indicate the next states. Based on the previous graph, we can convert it into the following transition matrix:
+
+```{r}
+markov_weather$estimate
+```
+
+## Absorbing State
+
+```{r}
+absorbingStates(markov_weather$estimate)
+```
 
 
 ## Steady-state
 
+```{r}
+steadyStates(markov_weather$estimate)
+```
 
 # Use Case
 
-To show the wide-range application of Markov Chains, I have provided use cases in two fields: marketing and NLP. In marketing field, we will see how Markov Chain can be deployed to predict the expected lifetime value of customers while in NLP we will see how Markov Chain can be used to create a text generator.
+There are many application of Markov Chains in various field of industries. Before we proceed to the main topic of text generation, I will illustrate some use cases of Markov Chains in a health insurance.
 
-## Customer Lifetime Value Analysis
+## Machine Maintenance
 
+This problem is derived from Hillier and Lieberman[^9]. A manufacturer has one key machine at the core of one of its production processes. Because of heavy use, the machine deteriorates rapidly in both quality and output. Therefore, at the end of each week, a thorough inspection is done that results in classifying the condition of the machine into one of four possible states:
 
+* 1: Good - No apparent problem
+* 2: Operable with minor deterioration
+* 3: Operable with major deterioration
+* 4: Inoperable due to bad quality
+
+The transition matrix for this problem is as follows.
+
+```{r}
+transition_matrix <- matrix(c(0, 7/8, 1/16, 1/16,
+                              0, 3/4, 1/8, 1/8,
+                              0, 0, 1/2, 1/2,
+                              1, 0, 0, 0), 
+                            byrow = TRUE, nrow = 4)
+
+transition_matrix
+```
+
+Based on the transition matrix, we can see that an inoperable machine will go back to the state of Good as new. This is because the company cannot let the machine to stay broken since the production target must be met. The machine would be repaired or replaced. The replacement process takes 1 week to complete so that production is lost for this period. The cost of the lost production (lost profit) is USD 2,000, and the cost of replacing the machine is USD 4,000; so the total cost incurred whenever the current machine enters state 4 is USD 6,000. Even before the machine reaches state 3, costs may be incurred from the production of defective items. When the machine is in minor deteroriation (state 2), the expected costs per week is USD 1,000 while if the machine is in a major deteroriation (state 3), the expected cost per week is USD 3,000. Another cost that can be incurred is when we do an overhaul toward the machine, which incurr USD 2000 for maintenance while also making us lost USD 2000 of profit.
+
+Below is the complete list of the cost and when the cost can be incurred:
+
+```{r}
+cost_df <- data.frame(policy = c("do nothing", "do nothing", "do nothing", "overhaul", "replace"),
+           state = c(1, 2, 3, 4, "2, 3, 4"),
+           cost_due_to_defect = c(0, 1000, 3000, 0, 0),
+           maintenance_cost = c(0, 0, 0, 2000, 4000),
+           profit_lost = c(0, 0, 0, 2000, 2000),
+           total_cost = c(0, 1000, 3000, 4000, 6000)
+           )
+
+cost_df
+```
+
+What is the optimal maintenance policy? Should we do nothing at all? Or do we need to overhaul everytime the machine go to major deteroriation (state 3)? Do we need to replace the machine every time it deviate from state 1? We will discuss it one at a time.
+
+First, from the transition matrix, we will create a `markovchain` object.
+
+```{r}
+markov_model <- new("markovchain", transitionMatrix = transition_matrix, 
+                    name = "Machine Opeation", states = c("Good", "Minor", "Major", "Inoperable"))
+
+set.seed(123)
+plot(markov_model)
+```
+
+### First Policy
+
+First we will employ the policy to replace the machine eveytime it reach the inoperable condition (state 1).
+
+To evaluate this maintenance policy, we should consider both the immediate costs incurred over the coming week (just described) and the subsequent costs that result from having the system evolve in this way. A widely used measure of performance for Markov chains is the (long-run) **expected average cost per unit time**. To calculate this measure, we first derive the steady-state probabilities. If you remember, steady-state means that regardless of the previous state, the probability for the next is all the same.
+
+```{r}
+steadyStates(markov_model)
+```
+
+Hence, the (long-run) expected average cost per week for this maintenance policy is:
+
+$$0\ \pi_1 + 1000\ \pi_2\ +\ 3000\ \pi_3\ +\ 6000\ \pi_4$$
+
+```{r}
+cost <- c(0, 1000, 3000, 6000)
+
+policy_1 <- (steadyStates(markov_model) * cost) %>% sum()
+policy_1
+```
+
+If we replace the machine eveytime it reach the inoperable condition (state 4), the expected cost is USD 1923.08.
+
+### Second Policy
+
+The second policy is to replace the machine when it is inoperable (state 4) and overhaul it when it get to major deteroriation (state 3). Since overhauling can make our machine condition to be better, the transition matrix is changed from the previous one. Everytime the machine get overhauled, it would go from major deteroriation to minor deteroriation.
+
+```{r}
+transition_matrix <- matrix(c(0, 7/8, 1/16, 1/16,
+                              0, 3/4, 1/8, 1/8,
+                              0, 1, 0, 0,
+                              1, 0, 0, 0), 
+                            byrow = TRUE, nrow = 4)
+
+markov_model <- new("markovchain", transitionMatrix = transition_matrix, 
+                    name = "Machine Opeation", states = c("Good", "Minor", "Major", "Inoperable"))
+
+set.seed(123)
+plot(markov_model)
+```
+
+By employing overhaul with cost of USD 4000,the cost for state 3 goes from mere USD 3000 (cost due to defect) to USD 4000.
+
+The expected average cost is as follows.
+
+```{r}
+cost <- c(0, 1000, 4000, 6000)
+
+policy_2 <- (steadyStates(markov_model) * cost) %>% sum()
+policy_2
+```
+
+### Third Policy
+
+The third policy is to replace the machine every time it goes to state 3 and state 4. The transition matrix is once again change, because by replacing the machine, it will go from state 3 directly toward state 1 (Good) instead of going to state 2 (minor deteroriation).
+
+```{r}
+transition_matrix <- matrix(c(0, 7/8, 1/16, 1/16,
+                              0, 3/4, 1/8, 1/8,
+                              1, 0, 0, 0,
+                              1, 0, 0, 0), 
+                            byrow = TRUE, nrow = 4)
+
+markov_model <- new("markovchain", transitionMatrix = transition_matrix, 
+                    name = "Machine Opeation", states = c("Good", "Minor", "Major", "Inoperable"))
+
+set.seed(123)
+plot(markov_model)
+```
+
+The expected average cost is as follows.
+
+```{r}
+cost <- c(0, 1000, 6000, 6000)
+
+policy_3 <- (steadyStates(markov_model) * cost) %>% sum()
+policy_3
+```
+
+We recap the cost associated with each policy.
+
+```{r}
+data.frame(policy = c("Only replace machine when inoperable", "Replace and overhaul", "Replace when major deteroriation and inoperable"),
+           `expected cost` = c(policy_1, policy_2, policy_3))
+```
+
+Based on the expected average cost, we can see that by combining machine replacement and overhaul, we can expect the minimum cost. Thus, we should employ this policy. There are a lot of other application of Markov Chains in manufacturing, such as in inventory management, quality control, even in customer management.
+
+## Health Insurance
+
+Actuaries quantify the risk inherent in insurance contracts, evaluating the premium of insurance contract to be sold (therefore covering future risk) and evaluating the actuarial reserves of existing portfolios (the liabilities in terms of benefits or claims payments due to policyholder arising from previously sold contracts). The example comes from Deshmukh[^9]. 
+
+An insurer issues a special 3-year insurance contract to a person when the transitions among four states, 1: active, 2: disabled, 3: withdrawn, and 4: dead. The death benefit is 1000, payable at the end of the year of death. A death benefit is a payout to the beneficiary of a life insurance policy, annuity, or pension when the insured or annuitant dies. Suppose that the insured is active at the issue of policy. Insureds do not pay annual premiums when they are disabled. Suppose that the interest rate is 5 % per annum. Calculate the benefit reserve at the beginning of year 2 and 3.
+
+```{r}
+benefit <- c(0, 0, 500, 1000)
+
+transition_matrix <- matrix(c(0.5, .25, .15, .1,
+                              0.4, 0.4, 0.0, 0.2,
+                              0, 0, 1, 0,
+                              0, 0, 0, 1), 
+                            byrow = TRUE, nrow = 4)
+
+markov_model <- new("markovchain", transitionMatrix = transition_matrix, 
+                    name = "Health Insurance", states = c("active", "disable", "withdrawn", "death"))
+
+set.seed(1000)
+plot(markov_model)
+```
+
+The policyholders is active at $T_0$. Therefore the expected states at $T_1, T_2, T_3$ are calculated in the following.
+
+```{r}
+T0 <- c(1,0,0,0)
+T1 <- T0 * markov_model
+T2 <- T1 * markov_model
+T3 <- T2 * markov_model
+
+paste(c("Year 0:", T0), collapse = " ")
+paste(c("Year 1:", T1), collapse = " ")
+paste(c("Year 2:", T2), collapse = " ")
+paste(c("Year 3:", T3), collapse = " ")
+```
+
+The present value of future benefit (PVFB) at T0 is given by:
+
+```{r}
+PVFB <- T0 %*% benefit * 1.05 ^ -0 + 
+   T1 %*% benefit * 1.05 ^ -1 + 
+   T2 %*% benefit * 1.05 ^ -2 + 
+   T3 %*% benefit * 1.05 ^ -3
+
+PVFB
+```
+
+The yearly premium payable whether the insured is alive is as follows.
+
+```{r}
+P <- PVFB / (T0[1] * 1.05 ^- 0 + T1[1] * 1.05 ^ -1 + T2[1] * 1.05 ^ -2)
+```
+
+The reserve at the beginning of the second year, in the case of the insured being alive, is as follows.
+
+```{r}
+PVFB <- T2 %*% benefit * 1.05 ^ -1 + T3 %*% benefit * 1.05 ^ -2
+PVFP <- P*(T1[1] * 1.05 ^ -0 + T2[1] * 1.05 ^ -1)
+
+PVFB - PVFP
+```
 
 ## Text Generation
 
@@ -108,7 +368,7 @@ Before we create a big and complex text generator using a corpus or collection o
 knitr::include_graphics("asset/fox.png")
 ```
 
-First, we prepare the sentence, a generic one: the quick brown fox jumps over the lazy dog and the angry dog chase the fox. The single text will be splitted/tokenized without removing the word sequences.
+First, we prepare the sentence, a generic sentence that is used as a benchmark to test fonts: `the quick brown fox jumps over the lazy dog`. I will make it longer into `the quick brown fox jumps over the lazy dog and the angry dog chase the fox`. This single text will be splitted/tokenized without eliminating the word sequences.
 
 ```{r}
 # a single sentence
@@ -120,7 +380,7 @@ text_term <- strsplit(short_text, split = " ")
 text_term
 ```
 
-Now that we have the terms and it's sequence, we can build a Markov Chain and visualize the networks.
+Now that we have the terms and it's sequence, we can build a Markov Chains and visualize the networks.
 
 ```{r}
 fit_markov <- markovchainFit(text_term)
@@ -149,7 +409,7 @@ for (i in 1:5) {
 }
 ```
 
-Does the sentences make sense? Yes, but only some of them. The number of words generated also affect whether the sentence will make sense or not, such as the third sentence that end with `and`, making it an incomplete sentence, while the second and fourth sentence can be a complete sentence. We may want to cut the sentence at certain point to make it a better sentence.
+Does the sentences make sense? Yes, some of them does. The number of words generated also affect whether the sentence will make sense or not, such as the third sentence that end with `and`, making it an incomplete sentence, while the second and fourth sentence can be a complete sentence. We may want to cut the sentence at certain point to make it a better sentence.
 
 Next, we can try to create more complex model using `Movie Plot` dataset from Kaggle.
 
@@ -162,7 +422,6 @@ movie <- data.table::fread("data_input/wiki_movie_plots_deduped.csv", showProgre
 
 head(movie, 10)
 ```
-
 
 Imagine if we are a production studio and we want to make the next best-seller movie. We may want to gather a lot of great writers to gain a lot of inspiration and ideas for the plot. We also want to rely on the cutting-edge technology of text generator in order to help us during the brainstorming session. Movie plots produced by the machine will be evaluated by the panel and producer to see if it will sell at the market. Our producer is looking forward to make a new movie with *Mystery* genre, so our task as the data scientist is to figure out how to create a text generator that will produce a high-quality mystery movie plot.
 
@@ -182,18 +441,20 @@ There are 481 *mystery* movie from 1901 up to 2017. You may suggest to do furthe
 Before we create the Markov Chain, we need to clean the text with basic text preprocessing, such as lowercase all text, replace word contraction, etc. 
 
 ```{r}
-mystery_movie <- mystery_movie %>% 
+mystery_movie <- movie %>% 
+   filter( str_detect(Genre, pattern = "mystery") ) %>% 
    mutate(Plot = Plot %>% 
              tolower() %>% 
              replace_contraction() %>% 
              replace_word_elongation() %>%
              str_remove_all( pattern = "[:punct:]") %>% 
+             str_remove_all( pattern = "[0-9]") %>% 
+             replace_non_ascii(replacement = "") %>%
              replace_curly_quote() %>% 
              replace_white()
              )
 
-# Split sentence into words
-movie_term <- strsplit(mystery_movie$Plot, " ")
+movie_term <- mystery_movie$Plot %>% tail(10)
 ```
 
 ### Model Fitting
@@ -202,15 +463,16 @@ Now we will fit the data into Markov Chains.
 
 ```{r eval=FALSE}
 tictoc::tic()
-fit_markov <- markovchainFit(movie_term, parallel = T)
+fit_markov <- markovchainFit(movie_title, parallel = T)
 tictoc::toc()
 ```
 
-```{r}
+Let's try to generate some twisted movie plot.
 
+```{r}
 for (i in 1:10) {
 
-   markovchainSequence(n = 20, # generate 7 next words 
+   markovchainSequence(n = 20, 
                        markovchain = fit_markov$estimate) %>%  
    
    # joint words
@@ -220,6 +482,44 @@ for (i in 1:10) {
 }
 ```
 
+### Text Generation with N-gram
+
+```{r}
+drama_movie <-  movie %>% 
+   filter( str_detect(Genre, "drama"), `Release Year` >= 2010) %>% 
+   tail(10) %>% 
+   mutate(Plot = Plot %>% 
+             tolower() %>% 
+             replace_contraction() %>% 
+             replace_word_elongation() %>%
+             str_remove_all( pattern = "[:punct:]") %>% 
+             str_remove_all( pattern = "[0-9]") %>% 
+             replace_non_ascii(replacement = "") %>%
+             replace_curly_quote() %>% 
+             replace_white()
+             ) %>% 
+   unnest_tokens(term, Plot, token = "ngrams", n =2)
+
+drama_term <- drama_movie$term
+```
+
+```{r}
+tictoc::tic()
+fit_markov <- markovchainFit(drama_term)
+tictoc::toc()
+```
+
+```{r}
+for (i in 1:10) {
+
+   markovchainSequence(n = 20, 
+                       markovchain = fit_markov$estimate) %>%  
+   # joint words
+   paste(collapse = " ") %>%
+   paste0(".") %>% 
+   print()
+}
+```
 
 # Conclusion
 
