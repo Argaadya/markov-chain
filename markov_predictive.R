@@ -29,16 +29,20 @@ predictive_text <- function(text, num_word){
         
         input_text <- strsplit(text, " ") %>% unlist() %>% tail(1) %>% paste(collapse = " ")
         
-        fit_markov$estimate[ tolower(input_text), ] %>%
+        suggest <- fit_markov$estimate[ tolower(input_text), ] %>%
           sort(decreasing = T) %>% 
-          head(num_word) %>% 
+          head(num_word) 
+        
+        suggest[suggest > 0] %>% 
           names() 
       } else {
         
         # Can find the transition in bigram
-        markov_bigram$estimate[ tolower(input_text), ] %>%
+        suggest <- markov_bigram$estimate[ tolower(input_text), ] %>%
           sort(decreasing = T) %>% 
-          head(num_word) %>% 
+          head(num_word) 
+        
+        suggest[suggest > 0] %>% 
           names() %>%
           str_extract(pattern = "\\s(.*)") %>% 
           str_remove("[ ]")
@@ -46,9 +50,11 @@ predictive_text <- function(text, num_word){
     } else {
       
       # Can find the transition in trigram
-      markov_trigram$estimate[ tolower(input_text), ] %>%
+      suggest <- markov_trigram$estimate[ tolower(input_text), ] %>%
         sort(decreasing = T) %>% 
-        head(num_word) %>% 
+        head(num_word) 
+      
+      suggest[suggest > 0] %>% 
         names() %>%
         str_extract(pattern = "\\s(.*)") %>% 
         str_remove("[ ]") %>%  
@@ -68,16 +74,20 @@ predictive_text <- function(text, num_word){
         
         input_text <- strsplit(text, " ") %>% unlist() %>% tail(1) %>% paste(collapse = " ")
         
-        fit_markov$estimate[ tolower(input_text), ] %>%
+        suggest <- fit_markov$estimate[ tolower(input_text), ] %>%
           sort(decreasing = T) %>% 
-          head(num_word) %>% 
+          head(num_word) 
+        
+        suggest[suggest > 0] %>% 
           names() 
       } else{
         
         # Can find the transition in bigram
-        markov_bigram$estimate[ tolower(input_text), ] %>%
+        suggest <- markov_bigram$estimate[ tolower(input_text), ] %>%
           sort(decreasing = T) %>% 
-          head(num_word) %>% 
+          head(num_word) 
+        
+        suggest[suggest > 0] %>% 
           names() %>%
           str_extract(pattern = "\\s(.*)") %>% 
           str_remove("[ ]")
@@ -90,9 +100,12 @@ predictive_text <- function(text, num_word){
       
       # exclude punctuation
       punctuation <- which(fit_markov$estimate[ tolower(input_text), ] %>% names() %>% str_detect("[:punct:]"))
-      fit_markov$estimate[ tolower(input_text), -punctuation] %>%
+      
+      suggest <- fit_markov$estimate[ tolower(input_text), -punctuation] %>%
         sort(decreasing = T) %>% 
-        head(num_word) %>% 
+        head(num_word) 
+      
+      suggest[suggest > 0] %>% 
         names() 
     }
     
