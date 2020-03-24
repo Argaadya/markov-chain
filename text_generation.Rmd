@@ -408,6 +408,7 @@ This part will illustrate how Markov Chain can be applied to make a text generat
 * Lower computation time
 
 However, there is some disadvantages on using Markov Chains to build text generator:
+
 * The generated text is as good as the input corpus (garbage in garbage out)
 * Need to create multiple n-gram Markov Chains (high order model) to captue the context
 
