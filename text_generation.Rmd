@@ -6,7 +6,7 @@ output:
   html_document:
    toc: true
    toc_float: true
-   toc_depth: 3
+   toc_depth: 2
    theme: flatly
    highlight: zenburn
    df_print: paged
@@ -60,7 +60,7 @@ Markov Chain is a mathematical model of stochastic process that predicts the con
 
 Through this article, we will explore the mechanism behind Markov Chains and how to apply it to create a text generator and some other use cases.
 
-## Requirement and Training Objective
+## Training Objective
 
 The goal of this article is to help you:
 
@@ -93,6 +93,8 @@ library(markovchain)
 ```
 
 # Markov Chain
+
+This section is dedicated to give you a general understanding of the elements and characteristics of Markov Chains.
 
 ## Transition Probability
 
@@ -127,19 +129,11 @@ embed(weather_data, 2)[, 2:1] %>%
    count(current, next_day)
 ```
 
-
-Based on the data, if current day is sunny,  there are 6 occurences that the next day would be cloudy, 18 occurences that the next day is rain, and 30 occurences that the next day is sunny again. We can directly calculate the probability. For example, if the current day is sunny, the probability that the next day would be sunny again is:
-
-$$P(tomorrow = sunny\ |\ today = sunny) = \frac{30}{30+6+18} = 0.556$$
-
-This probability is called as the **Transition Probability** and represent the probability of transition from sunny today to sunny again tomorrow. Below is the transition probability for each next state if today is sunny.
-
 Based on the data, if current day is sunny,  there are 6 occurences that the next day would be cloudy, 18 occurences that the next day is rain, and 30 occurences that the next day is sunny again. Based on the data, we can directly calculate the probability. For example, if the current day is sunny, the probability that the next day would be sunny again is:
 
-$$P(tomorrow = sunny|today = sunny) = \frac{30}{30+6+18} = 0.556$$
+$$P_{sunny\ sunny} = \frac{30}{30+6+18} = 0.556$$
 
 This probability is called as the **Transition Probability** and represent the probability that tomorrow will be sunny if today is sunny. Below is the probability for each next state if today is sunny.
-
 
 ```{r echo=FALSE}
 weather_sunny <- embed(weather_data, 2)[, 2:1] %>% 
@@ -226,9 +220,9 @@ $n_{ij}$ = number of sequence from *i* to *j* from the data
 
 $n_{iu}$ = number of sequence from *i* to *u* with $u = 1, 2, ..., k$
 
-$k $ = number of all possible states
+$k$ = number of all possible states
 
-You can also add laplace smoothing and slightly modify the equation:
+You can also add laplace smoothing and slightly modify the equation using the laplacian method:
 
 $$\hat p_{ij} = \frac{n_{ij}  + \alpha}{\Sigma_{u = 1}^k (n_{iu}+ \alpha)}$$
 
@@ -244,7 +238,7 @@ markov_weather <- markovchainFit(weather_data, method = "mle")
 markov_weather$estimate
 ```
 
-The transition matrix is identical with the previous one. The next section will illustrate 
+The transition matrix is identical with the previous one. 
 
 ## Chapman-Kolmogorov Equation
 
@@ -287,7 +281,6 @@ Let's go back to the initial transition matrix:
 markov_weather$estimate
 ```
 
-
 Based on the **Chapman-Kolmogorov**, the probability to be sunny at the next 2 days if today is cloudy is:
 
 $$p_{cloudy\ sunny}^{2} = \Sigma_{k=0}^{3} p_{cloudy\ k}^{1}\ p_{k\ j}^{2-1}$$
@@ -328,6 +321,8 @@ There are at least 4 special or notable state in Markov Chains:
 * Absorbing State
 * Transient State
 * Recurrent State
+
+Understanding the presence of those stats is useful if we wish to analyze the system via Markov Chains.
 
 ### Steady States
 
@@ -379,8 +374,6 @@ markov_health <- new("markovchain", transitionMatrix = transition_matrix,
 markov_health
 ```
 
-If the current state is withdrawn, the next is certainly withdrawn as well since it has the transition probability of 1. The same thing happens when the current state is death. This state is called **Absorbing States**, because once the system entered this state, it cannot left. The system will loop and staty at the state. Once people withdrawn their insurance, they next state will stay withdrawn and cannot be active again. Once the insured is death, they cannot be active or alive again (hopefully).
-
 To acquire the absorbing state of the Markov Chains, we simply use `absorbingState()` function.
 
 ```{r}
@@ -397,15 +390,314 @@ A state is said to be a transient state if, upon entering this state, the proces
 transientStates(markov_health)
 ```
 
+State `active` and `disable` is transient because there is a non-zero probability that we will never return to this state.
+
 Meanwhile, a state is said to be a recurrent state if, upon entering this state, the process definitely will return to this state again. Therefore, a state is recurrent if and only if it is not transient.
 
 ```{r}
 recurrentStates(markov_health)
 ```
 
-# Use Case
+State `withdrawn` and `death` is recurrent because there is no non-zero probability that we will never return to this state.
 
-There are many application of Markov Chains in various field of industries. Before we proceed to the main topic of text generation, I will illustrate some use cases of Markov Chains in health insurance and manufacturing machine maintenance. 
+# Text Generation
+
+This part will illustrate how Markov Chain can be applied to make a text generator. There are some advantages of employing Markov Chains for text generation compared to other method:
+
+* Simple and easy to implement
+* Lower computation time
+
+However, there is some disadvantages on using Markov Chains to build text generator:
+* The generated text is as good as the input corpus (garbage in garbage out)
+* Need to create multiple n-gram Markov Chains (high order model) to captue the context
+
+Before we create a big and complex text generator using a corpus or collection of text data, first let's create a simple one. I will use a single sentence and build a text generator based on words present on the sentence.
+
+```{r out.width="40%", echo=FALSE}
+knitr::include_graphics("asset/fox.png")
+```
+
+First, we prepare the sentence, a generic sentence that is used as a benchmark to test fonts: `the quick brown fox jumps over the lazy dog`. I will make it longer into `the quick brown fox jumps over the lazy dog and the angry dog chase the fox`. This single text will be splitted/tokenized without eliminating the word sequences.
+
+```{r}
+# a single sentence
+short_text <- c("the quick brown fox jumps over the lazy dog and the angry dog chase the fox")
+
+# split the sentence into words
+text_term <- strsplit(short_text, split = " ")
+
+text_term
+```
+
+Now that we have the terms and it's sequence, we can build a Markov Chains and visualize the networks.
+
+```{r}
+fit_markov <- markovchainFit(text_term)
+
+set.seed(123)
+plot(fit_markov$estimate)
+```
+
+The subsequent words are generated based on the transition probability (the number on the graph). For example, if the current word is `dog`, the next word can be `chase` and word `and`, with equal probability of 0.5 to appear. If the current word is `chase`, the next word must be `the` because it has probability of 1 to appear afer word `chase`.
+
+Now we can try to generate a text using the markov chain. Here, I only type word `the` and let the model finish the sentence. We will generate 5 different phrases.
+
+```{r}
+
+for (i in 1:5) {
+
+   set.seed(i)
+   markovchainSequence(n = 7, # generate 7 next words 
+                       markovchain = fit_markov$estimate,
+                       t0 = "the", include.t0 = T) %>%  # set the first word
+   
+   # joint words
+   paste(collapse = " ") %>% 
+   paste0(".") %>% 
+   print()
+}
+```
+
+Does the sentences make sense? Perhaps some of them does. The number of words generated also affect whether the sentence will make sense or not, such as the third sentence that end with `and`, making it an incomplete sentence, while the second and fourth sentence can be a complete sentence. We may want to cut the sentence at certain point to make it a better sentence.
+
+Next, we can try to create more complex model using to create a sentences based on `Sherlock Holmes` novel.
+
+## Import Dataset
+
+The data come from <a href = "https://www.gutenberg.org/ebooks/1661"> The Adventure of Sherlock Holmes </a> by Sir Arthur Conan Doyles. We will directly import the text from the `project gutenberg` website. Since processing a lot of words/terms in NLP is requires a huge resource (both times and power), I will only use this single book instead of all of Sherlock Holmes novels.
+
+```{r warning=FALSE, message=FALSE}
+library(gutenbergr)
+
+sherlock <- gutenberg_download(1661)
+head(sherlock, 30)
+```
+
+## Text Cleansing
+
+We need to cleanse the text and remove the chapter title and unnecessary element such as blank text.
+
+```{r}
+# Get chapter title
+chapter_title <- sherlock %>% 
+   filter(text != "") %>% 
+   slice(c(4:15)) %>% 
+   pull(text) %>% 
+   tolower() %>% 
+   str_trim()
+
+# text cleansing
+sherlock_clean <- sherlock %>%  
+   mutate(text  = tolower(text)) %>% 
+   filter( str_detect(text, paste(chapter_title, collapse = "|")) == F,
+           text != "") %>% 
+   slice(-c(1:4)) %>% 
+   mutate(text = text %>%  
+             str_replace(pattern = "--", " ") %>% 
+             str_remove_all(pattern = "(?![.,!])[[:punct:]]") %>% 
+             str_remove_all(pattern = "[0-9]") %>% 
+             replace_contraction() %>% 
+             replace_white() %>% 
+             str_replace_all("mrs[.]", "mistress") %>% 
+             str_replace_all("mr[.]", "mister") %>% 
+             str_replace_all(pattern = "[.]", replacement = " .") %>% 
+             str_replace_all(pattern = "[!]", replacement = " !") %>% 
+             str_replace_all(pattern = "[,]", replacement = " ,"))
+
+
+head(sherlock_clean, 10)
+```
+
+Each row represent a single line in the book. To get better result, first we need to make a compile all row into a single vector.
+
+
+```{r}
+text_sherlock <- sherlock_clean %>% 
+   pull(text) %>% 
+   strsplit(" ") %>% 
+   unlist() 
+
+text_sherlock %>% head(10)
+```
+
+## Model Fitting
+
+Now we will fit the data into Markov Chains.
+
+```{r eval=FALSE}
+fit_markov <- markovchainFit(text_sherlock)
+```
+```{r echo=FALSE}
+fit_markov <- read_rds("sherlock.Rds")
+```
+
+Let's try to generate some sentences based on the Markov Chains. We will generate the next 6 words.
+
+```{r}
+for (i in 1:10) {
+
+   set.seed(i)
+
+   markovchainSequence(n = 6, 
+                       markovchain = fit_markov$estimate,
+                       t0 = "i", include.t0 = T) %>% 
+
+   # joint words
+   paste(collapse = " ") %>% 
+      
+   # create proper sentence form
+   str_replace_all(pattern = " ,", replacement = ",") %>% 
+   str_replace_all(pattern = " [.]", replacement = ".") %>% 
+   str_replace_all(pattern = " [!]", replacement = "!") %>% 
+
+   str_to_sentence() %>% 
+
+
+   print()
+}
+```
+
+If you want to make the model as a predictive text, you can create a function that will return a set of words with the highest probability for the next step.
+
+```{r}
+predictive_text <- function(text, num_word){
+   text <- strsplit(text, " ") %>% unlist() %>% tail(1)
+   
+   # exclude punctuation
+   punctuation <- which(fit_markov$estimate[ tolower(text), ] %>% names() %>% str_detect("[:punct:]"))
+   
+   suggest <- fit_markov$estimate[ tolower(text), -punctuation] %>%
+   sort(decreasing = T) %>% 
+   head(num_word) 
+   
+   suggest <- suggest[suggest > 0] %>% 
+   names()
+   
+   return(suggest)
+}
+
+predictive_text("i", 10)
+```
+
+Since we only use a token (1-gram), the Markov Chains will only consider the last word and see no context or sequence of words in the sentence.
+
+```{r}
+predictive_text("i wish she", 10)
+```
+
+## Text Generation with N-gram
+
+The previous section tell us how to create a Markov Chains text generator with a single term (1-gram) token. Can we create a Markov Chain using bigram (2-grams) or trigram (3-grams)?
+
+The answer is yes. We just need to adjust the input to be an n-grams instead of a single term.
+
+### Bigram Predictive Text
+
+Bigram predictive text will use two consecutive words/terms in order to predict the next word, instead of only using the last word. The transition matrix will consists of the transition probability between bigram. 
+
+```{r}
+
+bigram_sherlock <- sherlock_clean %>% 
+   head(2000) %>% 
+   unnest_tokens(bigram, text, token = "ngrams", n = 2) %>% 
+   pull(bigram)
+
+bigram_sherlock %>% head(10)
+```
+
+We will fit the vector into the Markov Chains. However, since the huge amount of bigram text and my hardware limitation, I can only afford to fit the first 2000 observations of the text. This will affect the transition matrix, but since we (more precisely me) don't have a lot of options, we will proceed to the next step. The fitting process take a lot of time to process and I have saved the `.Rds` file for you to access.
+
+```{r eval=FALSE}
+markov_bigram <- markovchainFit(bigram_sherlock)
+```
+```{r}
+markov_bigram <- read_rds("bigram_sherlock.Rds")
+```
+
+We will create a predictive text function using the Bigram Markov Chains. Let's say if I insert `i will`, what will be the top 5 next words.
+
+```{r}
+predictive_text <- function(text, num_word){
+   
+   suggest <- markov_bigram$estimate[ tolower(text), ] %>%
+   sort(decreasing = T) %>% 
+   head(num_word) 
+   
+   suggest <- suggest[ suggest > 0] %>% 
+   names() %>% 
+   str_extract(pattern = "\\s(.*)") %>% 
+   str_remove("[ ]")
+   
+   return(suggest)
+}
+
+predictive_text("i will", 5)
+```
+
+### Trigram Predictive Text
+
+We will also create a Markov Chains for Trigram to get the context up to 3 previous words. However, since the huge amount of trigram text and my hardware limitation, I can only afford to fit the first 2000 observations of the text. 
+
+```{r}
+trigram_sherlock <- sherlock_clean %>%  
+   head(2000) %>% 
+   unnest_tokens(bigram, text, token = "ngrams", n = 3) %>% 
+   pull(bigram)
+
+trigram_sherlock %>% head(10)
+```
+
+Fit the data into Markov Chains. The fitting process take so much time so I save the `.Rds` file for you to access.
+
+```{r eval=FALSE}
+markov_trigram <- markovchainFit(trigram_sherlock)
+```
+```{r eval=FALSE}
+markov_trigram <- read_rds("trigram_sherlock.Rds")
+```
+
+Create the predictive function.
+
+```{r eval=FALSE}
+predictive_text <- function(text, num_word){
+   
+   suggest <- markov_trigram$estimate[ tolower(text), ] %>%
+   sort(decreasing = T) %>% 
+   head(num_word) 
+   
+   suggest <- suggest[ suggest > 0 ] %>% 
+   names() %>% 
+   str_extract(pattern = "\\s(.*)") %>% 
+   str_remove("[ ]") %>%  
+   str_extract(pattern = "\\s(.*)") %>% 
+   str_remove("[ ]")
+   
+   return(suggest)
+}
+
+predictive_text("i wish you", 5)
+```
+
+```{r echo=FALSE}
+read_rds("output_trigram.Rds")
+```
+
+### Combine 3 Markov Chains
+
+We can combine all Markov N-grams into a single function. The benefit is that it will look for context in trigram and bigram. If the input text has 3 or more words, it will look at the last 3 words on the phrase. If the words are not identified from the trigram Markov Chains or if the phrase has only 2 words, it will look at the bigram Markov Chains instead. Finally, if the two Markov Chains failed to find the result from their respective transition matrix, we will look at the 1-gram Markov Chains to predict the next word. I have compiled it in an R script.
+
+```{r eval=FALSE}
+source("markov_predictive.R")
+
+predictive_text("i love my", num_word = 5)
+```
+```{r echo=FALSE}
+read_rds("output_ngram.Rds")
+```
+
+# Business Use Case
+
+There are many application of Markov Chains in various field of industries other than for text generation. On this section, I will illustrate some use cases of Markov Chains in health insurance and manufacturing machine maintenance. 
 
 **You may skip the next sections if you only wish to learn how to create a text generator.**
 
@@ -608,298 +900,11 @@ PVFP <- P*(T1[1] * 1.05 ^ -0 + T2[1] * 1.05 ^ -1)
 PVFB - PVFP
 ```
 
-## Text Generation
-
-This part will illustrate how Markov Chain can be applied to make a text generator.
-
-Before we create a big and complex text generator using a corpus or collection of text data, first let's create a simple one. I will use a single sentence and build a text generator based on words present on the sentence.
-
-```{r out.width="40%", echo=FALSE}
-knitr::include_graphics("asset/fox.png")
-```
-
-First, we prepare the sentence, a generic sentence that is used as a benchmark to test fonts: `the quick brown fox jumps over the lazy dog`. I will make it longer into `the quick brown fox jumps over the lazy dog and the angry dog chase the fox`. This single text will be splitted/tokenized without eliminating the word sequences.
-
-```{r}
-# a single sentence
-short_text <- c("the quick brown fox jumps over the lazy dog and the angry dog chase the fox")
-
-# split the sentence into words
-text_term <- strsplit(short_text, split = " ")
-
-text_term
-```
-
-Now that we have the terms and it's sequence, we can build a Markov Chains and visualize the networks.
-
-```{r}
-fit_markov <- markovchainFit(text_term)
-
-set.seed(123)
-plot(fit_markov$estimate)
-```
-
-The subsequent words are generated based on the transition probability (the number on the graph). For example, if the current word is `dog`, the next word can be `chase` and word `and`, with equal probability of 0.5 to appear. If the current word is `chase`, the next word must be `the` because it has probability of 1 to appear afer word `chase`.
-
-Now we can try to generate a text using the markov chain. Here, I only type word `the` and let the model finish the sentence. We will generate 5 different phrases.
-
-```{r}
-
-for (i in 1:5) {
-
-   set.seed(i)
-   markovchainSequence(n = 7, # generate 7 next words 
-                       markovchain = fit_markov$estimate,
-                       t0 = "the", include.t0 = T) %>%  # set the first word
-   
-   # joint words
-   paste(collapse = " ") %>% 
-   paste0(".") %>% 
-   print()
-}
-```
-
-Does the sentences make sense? Perhaps some of them does. The number of words generated also affect whether the sentence will make sense or not, such as the third sentence that end with `and`, making it an incomplete sentence, while the second and fourth sentence can be a complete sentence. We may want to cut the sentence at certain point to make it a better sentence.
-
-Next, we can try to create more complex model using to create a sentences based on `Sherlock Holmes` novel.
-
-### Import Dataset
-
-The data come from <a href = "https://www.gutenberg.org/ebooks/1661"> The Adventure of Sherlock Holmes </a> by Sir Arthur Conan Doyles. We will directly import the text from the `project gutenberg` website. Since processing a lot of words/terms in NLP is requires a huge resource (both times and power), I will only use this single book instead of all of Sherlock Holmes novels.
-
-```{r warning=FALSE, message=FALSE}
-library(gutenbergr)
-
-sherlock <- gutenberg_download(1661)
-head(sherlock, 30)
-```
-
-
-### Text Cleansing
-
-We need to cleanse the text and remove the chapter title and unnecessary element such as blank text.
-
-```{r}
-# Get chapter title
-chapter_title <- sherlock %>% 
-   filter(text != "") %>% 
-   slice(c(4:15)) %>% 
-   pull(text) %>% 
-   tolower() %>% 
-   str_trim()
-
-# text cleansing
-sherlock_clean <- sherlock %>%  
-   mutate(text  = tolower(text)) %>% 
-   filter( str_detect(text, paste(chapter_title, collapse = "|")) == F,
-           text != "") %>% 
-   slice(-c(1:4)) %>% 
-   mutate(text = text %>%  
-             str_replace(pattern = "--", " ") %>% 
-             str_remove_all(pattern = "(?![.,!])[[:punct:]]") %>% 
-             str_remove_all(pattern = "[0-9]") %>% 
-             replace_contraction() %>% 
-             replace_white() %>% 
-             str_replace_all("mrs[.]", "mistress") %>% 
-             str_replace_all("mr[.]", "mister") %>% 
-             str_replace_all(pattern = "[.]", replacement = " .") %>% 
-             str_replace_all(pattern = "[!]", replacement = " !") %>% 
-             str_replace_all(pattern = "[,]", replacement = " ,"))
-
-
-head(sherlock_clean, 10)
-```
-
-Each row represent a single line in the book. To get better result, first we need to make a compile all row into a single vector.
-
-
-```{r}
-text_sherlock <- sherlock_clean %>% 
-   pull(text) %>% 
-   strsplit(" ") %>% 
-   unlist() 
-
-text_sherlock %>% head(10)
-```
-
-### Model Fitting
-
-Now we will fit the data into Markov Chains.
-
-```{r eval=FALSE}
-fit_markov <- markovchainFit(text_sherlock)
-```
-```{r echo=FALSE}
-fit_markov <- read_rds("sherlock.Rds")
-```
-
-Let's try to generate some sentences based on the Markov Chains. We will generate the next 6 words.
-
-```{r}
-for (i in 1:10) {
-
-   set.seed(i)
-
-   markovchainSequence(n = 6, 
-                       markovchain = fit_markov$estimate,
-                       t0 = "i", include.t0 = T) %>% 
-
-   # joint words
-   paste(collapse = " ") %>% 
-      
-   # create proper sentence form
-   str_replace_all(pattern = " ,", replacement = ",") %>% 
-   str_replace_all(pattern = " [.]", replacement = ".") %>% 
-   str_replace_all(pattern = " [!]", replacement = "!") %>% 
-
-   str_to_sentence() %>% 
-
-
-   print()
-}
-```
-
-If you want to make the model as a predictive text, you can create a function that will return a set of words with the highest probability for the next step.
-
-```{r}
-predictive_text <- function(text, num_word){
-   text <- strsplit(text, " ") %>% unlist() %>% tail(1)
-   
-   # exclude punctuation
-   punctuation <- which(fit_markov$estimate[ tolower(text), ] %>% names() %>% str_detect("[:punct:]"))
-   
-   suggest <- fit_markov$estimate[ tolower(text), -punctuation] %>%
-   sort(decreasing = T) %>% 
-   head(num_word) 
-   
-   suggest <- suggest[suggest > 0] %>% 
-   names()
-   
-   return(suggest)
-}
-
-predictive_text("i", 10)
-```
-
-Since we only use a token (1-gram), the Markov Chains will only consider the last word and see no context or sequence of words in the sentence.
-
-```{r}
-predictive_text("i wish she", 10)
-```
-
-### Text Generation with N-gram
-
-The previous section tell us how to create a Markov Chains text generator with a single term (1-gram) token. Can we create a Markov Chain using bigram (2-grams) or trigram (3-grams)?
-
-The answer is yes. We just need to adjust the input to be an n-grams instead of a single term.
-
-#### Bigram Predictive Text
-
-Bigram predictive text will use two consecutive words/terms in order to predict the next word, instead of only using the last word. The transition matrix will consists of the transition probability between bigram. 
-
-```{r}
-
-bigram_sherlock <- sherlock_clean %>% 
-   head(2000) %>% 
-   unnest_tokens(bigram, text, token = "ngrams", n = 2) %>% 
-   pull(bigram)
-
-bigram_sherlock %>% head(10)
-```
-
-We will fit the vector into the Markov Chains. However, since the huge amount of bigram text and my hardware limitation, I can only afford to fit the first 2000 observations of the text. This will affect the transition matrix, but since we (more precisely me) don't have a lot of options, we will proceed to the next step. The fitting process take a lot of time to process and I have saved the `.Rds` file for you to access.
-
-```{r eval=FALSE}
-markov_bigram <- markovchainFit(bigram_sherlock)
-```
-```{r}
-markov_bigram <- read_rds("bigram_sherlock.Rds")
-```
-
-We will create a predictive text function using the Bigram Markov Chains. Let's say if I insert `i will`, what will be the top 5 next words.
-
-```{r}
-predictive_text <- function(text, num_word){
-   
-   suggest <- markov_bigram$estimate[ tolower(text), ] %>%
-   sort(decreasing = T) %>% 
-   head(num_word) 
-   
-   suggest <- suggest[ suggest > 0] %>% 
-   names() %>% 
-   str_extract(pattern = "\\s(.*)") %>% 
-   str_remove("[ ]")
-   
-   return(suggest)
-}
-
-predictive_text("i will", 5)
-```
-
-#### Trigram Predictive Text
-
-We will also create a Markov Chains for Trigram to get the context up to 3 previous words. However, since the huge amount of trigram text and my hardware limitation, I can only afford to fit the first 2000 observations of the text. 
-
-```{r}
-trigram_sherlock <- sherlock_clean %>%  
-   head(2000) %>% 
-   unnest_tokens(bigram, text, token = "ngrams", n = 3) %>% 
-   pull(bigram)
-
-trigram_sherlock %>% head(10)
-```
-
-Fit the data into Markov Chains. The fitting process take so much time so I save the `.Rds` file for you to access.
-
-```{r eval=FALSE}
-markov_trigram <- markovchainFit(trigram_sherlock)
-```
-```{r eval=FALSE}
-markov_trigram <- read_rds("trigram_sherlock.Rds")
-```
-
-Create the predictive function.
-
-```{r eval=FALSE}
-predictive_text <- function(text, num_word){
-   
-   suggest <- markov_trigram$estimate[ tolower(text), ] %>%
-   sort(decreasing = T) %>% 
-   head(num_word) 
-   
-   suggest <- suggest[ suggest > 0 ] %>% 
-   names() %>% 
-   str_extract(pattern = "\\s(.*)") %>% 
-   str_remove("[ ]") %>%  
-   str_extract(pattern = "\\s(.*)") %>% 
-   str_remove("[ ]")
-   
-   return(suggest)
-}
-
-predictive_text("i wish you", 5)
-```
-
-```{r echo=FALSE}
-read_rds("output_trigram.Rds")
-```
-
-#### Combine 3 Markov Chains
-
-We can combine all Markov N-grams into a single function. The benefit is that it will look for context in trigram and bigram. If the input text has 3 or more words, it will look at the last 3 words on the phrase. If the words are not identified from the trigram Markov Chains or if the phrase has only 2 words, it will look at the bigram Markov Chains instead. Finally, if the two Markov Chains failed to find the result from their respective transition matrix, we will look at the 1-gram Markov Chains to predict the next word. I have compiled it in an R script.
-
-```{r eval=FALSE}
-source("markov_predictive.R")
-
-predictive_text("i love my", num_word = 5)
-```
-```{r echo=FALSE}
-read_rds("output_ngram.Rds")
-```
-
 # Conclusion
 
-Markov Chains is a simple yet effective method to create a predictive text model. It model the transition probability between states, where in NLP each state is represented by terms/words. However, since it rely only on the probability of transition between words, the text generator still feel like a random mess when creating a sentence and has no context. Regardless, Markov Chains can be applied as a predictive text using combination of 1-gram, 2-grams, and 3-grams text. The main challenge on employing an NLP model is the hardware and computational power. Perhaps in the future we would like to consider to make a text generator with Deep Learning model and compare the performance with the current Markov Chains model. Beside of its application in NLP, Markov Chains is also proven to be useful in many other fields such as maintenance and healh insurance. 
+Markov Chains is a simple yet effective method to create a predictive text model. It model the transition probability between states, where in NLP each state is represented by terms/words. However, since it rely only on the probability of transition between words, the text generator still feel like a random mess when creating a sentence and has no context. Regardless, Markov Chains can be applied as a predictive text using combination of 1-gram, 2-grams, and 3-grams text. 
+
+The main challenge on employing an NLP model is the hardware and computational power. Perhaps in the future we would like to consider to make a text generator with Deep Learning model and compare the performance with the current Markov Chains model. Beside of its application in NLP, Markov Chains is also proven to be useful in many other fields such as maintenance and healh insurance. 
 
 # Reference
 
@@ -914,6 +919,3 @@ Markov Chains is a simple yet effective method to create a predictive text model
 [^9]: [Markov Chains Explained Visually](https://setosa.io/ev/markov-chains/)
 [^10]: [Introduction to Operation Research](https://www.amazon.com/Introduction-Operations-Research-Hillier-Lieberman/dp/0071139893)
 [^11]: [Multiple Decrement Models in Insurance](https://www.springer.com/gp/book/9788132206583)
-
-
-
