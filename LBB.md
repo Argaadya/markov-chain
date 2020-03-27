@@ -1,6 +1,6 @@
-# LBB Markov Chain
+# Learn By Building Markov Chain
 
-Create random sentences by making a text generator using the `theoffice` dataset from `schrute` package or your own choice of dataset. The dataset is consists of dialogue transcript from `The Office` series throughout all seasons. The rubrics for the LBB are as follows:
+Create random sentences by making a text generator using the `theoffice` dataset from `schrute` package. The dataset is consists of dialogue transcript from `The Office` series throughout all seasons. You may also use your own choice of dataset. The rubrics for the LBB are as follows:
 
 ## Input Data
 
