@@ -48,15 +48,15 @@ knitr::include_graphics("asset/google.png")
 
 Another implementation of text generation is to create an artificial text or script, which can be potentially applied to generate artificial news, create a better movie synopsis, create poems, or even create an entire book. 
 
-The following text is generated using the natural language processing model architecture called GPT-2[^4]. You can try to create one by visiting <a href = https://talktotransformer.com/> the website </a> made by Adam King[^5].
+The following text is generated using the natural language processing model architecture called GPT-2[^4]. You can try to create one by visiting <a href = https://talktotransformer.com/> the website </a> made by Adam King[^5]. Text generation can also be applied for image captioning or music generation, depending on the input[^6].
 
 ```{r out.width="60%", echo=FALSE}
 knitr::include_graphics("asset/gpt.png")
 ```
 
-GPT-2 is a very sophisticated model that use more than 8 million web pages as it training dataset. However, due to the great potential to be misused, the developers decided not to release the trained model. An alternative to create our own custom text generator is using the Recurrent Neural Network and it's LSTM companion[^6]. However, there is a simpler approach to create a text generator using a model called Markov Chain[^7]. The state-of-the-art or the development of text generation can be found at Fonseca[^8].
+GPT-2 is a very sophisticated model that use more than 8 million web pages as it training dataset. However, due to the great potential to be misused, the developers decided not to release the trained model. An alternative to create our own custom text generator is using the Recurrent Neural Network and it's LSTM companion[^7]. However, there is a simpler approach to create a text generator using a model called Markov Chain[^8]. The state-of-the-art or the development of text generation can be found at Fonseca[^9].
 
-Markov Chain is a mathematical model of stochastic process that predicts the condition of the next state (e.g. will it rain tomorrow?) based on the condition of the previous one. Using this principle, the Markov Chain can predict the next word based on the last word typed. Victor Powell[^9] has dedicated a great website to visualize how Markov Chains work.
+Markov Chain is a mathematical model of stochastic process that predicts the condition of the next state (e.g. will it rain tomorrow?) based on the condition of the previous one. Using this principle, the Markov Chain can predict the next word based on the last word typed. Victor Powell[^10] has dedicated a great website to visualize how Markov Chains work.
 
 Through this article, we will explore the mechanism behind Markov Chains and how to apply it to create a text generator and some other use cases.
 
@@ -116,6 +116,10 @@ weather <- c("sunny", "sunny", "rain", "cloudy")
 set.seed(123)
 weather_data <- sample(weather, 100, replace = T)
 head(weather_data, 10)
+```
+
+```{r}
+table(weather_data) %>% prop.table()
 ```
 
 If today is sunny, what is the probability that tomorrow will be sunny as well? We simply just need to calculate how many times that today is sunny and the next day is sunny as well from the data.
@@ -425,7 +429,9 @@ First, we prepare the sentence, a generic sentence that is used as a benchmark t
 short_text <- c("the quick brown fox jumps over the lazy dog and the angry dog chase the fox")
 
 # split the sentence into words
-text_term <- strsplit(short_text, split = " ")
+text_term <- strsplit(short_text, split = " ") %>% unlist()
+
+short_text
 
 text_term
 ```
@@ -433,10 +439,14 @@ text_term
 Now that we have the terms and it's sequence, we can build a Markov Chains and visualize the networks.
 
 ```{r}
-fit_markov <- markovchainFit(text_term)
+fit_markov <- markovchainFit(text_term, method = "laplace")
 
 set.seed(123)
 plot(fit_markov$estimate)
+```
+
+```{r}
+fit_markov$estimate
 ```
 
 The subsequent words are generated based on the transition probability (the number on the graph). For example, if the current word is `dog`, the next word can be `chase` and word `and`, with equal probability of 0.5 to appear. If the current word is `chase`, the next word must be `the` because it has probability of 1 to appear afer word `chase`.
@@ -444,12 +454,12 @@ The subsequent words are generated based on the transition probability (the numb
 Now we can try to generate a text using the markov chain. Here, I only type word `the` and let the model finish the sentence. We will generate 5 different phrases.
 
 ```{r}
-
+# generate random sentence
 for (i in 1:5) {
 
    set.seed(i)
    markovchainSequence(n = 7, # generate 7 next words 
-                       markovchain = fit_markov$estimate,
+                       markovchain = fit_markov$estimate, # transition matrix
                        t0 = "the", include.t0 = T) %>%  # set the first word
    
    # joint words
@@ -495,22 +505,21 @@ sherlock_clean <- sherlock %>%
    slice(-c(1:4)) %>% 
    mutate(text = text %>%  
              str_replace(pattern = "--", " ") %>% 
+             # remove punctuation selain tanda titik, koma sama seru
              str_remove_all(pattern = "(?![.,!])[[:punct:]]") %>% 
-             str_remove_all(pattern = "[0-9]") %>% 
-             replace_contraction() %>% 
-             replace_white() %>% 
+             str_remove_all(pattern = "[0-9]") %>% # remove numeric
+             replace_contraction() %>% # I'll menjadi I will
+             replace_white() %>% # remove double white space
              str_replace_all("mrs[.]", "mistress") %>% 
              str_replace_all("mr[.]", "mister") %>% 
              str_replace_all(pattern = "[.]", replacement = " .") %>% 
              str_replace_all(pattern = "[!]", replacement = " !") %>% 
              str_replace_all(pattern = "[,]", replacement = " ,"))
 
-
 head(sherlock_clean, 10)
 ```
 
 Each row represent a single line in the book. To get better result, first we need to make a compile all row into a single vector.
-
 
 ```{r}
 text_sherlock <- sherlock_clean %>% 
@@ -518,7 +527,10 @@ text_sherlock <- sherlock_clean %>%
    strsplit(" ") %>% 
    unlist() 
 
-text_sherlock %>% head(10)
+text_sherlock %>% head(30)
+```
+```{r}
+n_distinct(text_sherlock)
 ```
 
 ## Model Fitting
@@ -539,9 +551,9 @@ for (i in 1:10) {
 
    set.seed(i)
 
-   markovchainSequence(n = 6, 
+   markovchainSequence(n = 10, 
                        markovchain = fit_markov$estimate,
-                       t0 = "i", include.t0 = T) %>% 
+                       t0 = "the", include.t0 = T) %>% 
 
    # joint words
    paste(collapse = " ") %>% 
@@ -552,7 +564,6 @@ for (i in 1:10) {
    str_replace_all(pattern = " [!]", replacement = "!") %>% 
 
    str_to_sentence() %>% 
-
 
    print()
 }
@@ -577,7 +588,7 @@ predictive_text <- function(text, num_word){
    return(suggest)
 }
 
-predictive_text("i", 10)
+predictive_text("i am", 10)
 ```
 
 Since we only use a token (1-gram), the Markov Chains will only consider the last word and see no context or sequence of words in the sentence.
@@ -632,7 +643,36 @@ predictive_text <- function(text, num_word){
    return(suggest)
 }
 
-predictive_text("i will", 5)
+predictive_text("i will", 5) 
+```
+
+We can also create a random text generator using the bigram to create sentences.
+
+```{r}
+library(stringi)
+
+for (i in 1:10) {
+
+   set.seed(i)
+
+   markovchainSequence(n = 10, 
+                       markovchain = markov_bigram$estimate,
+                       t0 = "i was", include.t0 = T) %>% 
+   stri_extract_last_words() %>% 
+
+   # joint words
+   c("i", .) %>% 
+   paste(collapse = " ") %>% 
+      
+   # create proper sentence form
+   str_replace_all(pattern = " ,", replacement = ",") %>% 
+   str_replace_all(pattern = " [.]", replacement = ".") %>% 
+   str_replace_all(pattern = " [!]", replacement = "!") %>% 
+
+   str_to_sentence() %>% 
+
+   print()
+}
 ```
 
 ### Trigram Predictive Text
@@ -646,6 +686,8 @@ trigram_sherlock <- sherlock_clean %>%
    pull(bigram)
 
 trigram_sherlock %>% head(10)
+
+length(trigram_sherlock)
 ```
 
 Fit the data into Markov Chains. The fitting process take so much time so I save the `.Rds` file for you to access.
@@ -687,11 +729,17 @@ read_rds("output_trigram.Rds")
 
 We can combine all Markov N-grams into a single function. The benefit is that it will look for context in trigram and bigram. If the input text has 3 or more words, it will look at the last 3 words on the phrase. If the words are not identified from the trigram Markov Chains or if the phrase has only 2 words, it will look at the bigram Markov Chains instead. Finally, if the two Markov Chains failed to find the result from their respective transition matrix, we will look at the 1-gram Markov Chains to predict the next word. I have compiled it in an R script.
 
+1. Mencari kemungkinan atau state di 3-gram
+2. Kalau tidak ada, cari di 2-gram
+3. Kalau tidak ada, cari di 1-gram
+
 ```{r eval=FALSE}
 source("markov_predictive.R")
 
-predictive_text("i love my", num_word = 5)
+predictive_text("i love", num_word = 5)
 ```
+
+
 ```{r echo=FALSE}
 read_rds("output_ngram.Rds")
 ```
@@ -704,7 +752,7 @@ There are many application of Markov Chains in various field of industries other
 
 ## Machine Maintenance
 
-This problem is derived from Hillier and Lieberman[^10]. A manufacturer has one key machine at the core of one of its production processes. Because of heavy use, the machine deteriorates rapidly in both quality and output. Therefore, at the end of each week, a thorough inspection is done that results in classifying the condition of the machine into one of four possible states:
+This problem is derived from Hillier and Lieberman[^11]. A manufacturer has one key machine at the core of one of its production processes. Because of heavy use, the machine deteriorates rapidly in both quality and output. Therefore, at the end of each week, a thorough inspection is done that results in classifying the condition of the machine into one of four possible states:
 
 * 1: Good - No apparent problem
 * 2: Operable with minor deterioration
@@ -841,7 +889,7 @@ Based on the expected average cost, we can see that by combining machine replace
 
 ## Health Insurance
 
-Actuaries quantify the risk inherent in insurance contracts, evaluating the premium of insurance contract to be sold (therefore covering future risk) and evaluating the actuarial reserves of existing portfolios (the liabilities in terms of benefits or claims payments due to policyholder arising from previously sold contracts). The example comes from Deshmukh[^11]. 
+Actuaries quantify the risk inherent in insurance contracts, evaluating the premium of insurance contract to be sold (therefore covering future risk) and evaluating the actuarial reserves of existing portfolios (the liabilities in terms of benefits or claims payments due to policyholder arising from previously sold contracts). The example comes from Deshmukh[^12]. 
 
 An insurer issues a special 3-year insurance contract to a person when the transitions among four states, 1: active, 2: disabled, 3: withdrawn, and 4: dead. The death benefit is 1000, payable at the end of the year of death. A death benefit is a payout to the beneficiary of a life insurance policy, annuity, or pension when the insured or annuitant dies. Suppose that the insured is active at the issue of policy. Insureds do not pay annual premiums when they are disabled. Suppose that the interest rate is 5 % per annum. Calculate the benefit reserve at the beginning of year 2 and 3.
 
@@ -914,9 +962,10 @@ The main challenge on employing an NLP model is the hardware and computational p
 [^3]: [How Google Autocomplete Works](https://www.blog.google/products/search/how-google-autocomplete-works-search/)
 [^4]: [OpenAI GPT-2](https://openai.com/blog/better-language-models/#sample2)
 [^5]: [Talk to Transformer](https://talktotransformer.com/)
-[^6]: [Text Generation With LSTM Recurrent Neural Networks in Python with Keras](https://machinelearningmastery.com/text-generation-lstm-recurrent-neural-networks-python-keras/)
-[^7]: [Markov Chains: How to Train Text Generation to Write Like George R. R. Martin](https://www.kdnuggets.com/2019/11/markov-chains-train-text-generation.html)
-[^8]: [How Neural Networks Are Learning to Write](https://towardsdatascience.com/how-neural-networks-are-learning-to-write-d631b249b499?gi=348999a0611a)
-[^9]: [Markov Chains Explained Visually](https://setosa.io/ev/markov-chains/)
-[^10]: [Introduction to Operation Research](https://www.amazon.com/Introduction-Operations-Research-Hillier-Lieberman/dp/0071139893)
-[^11]: [Multiple Decrement Models in Insurance](https://www.springer.com/gp/book/9788132206583)
+[^6]: [The Arti Canon: Neural Text Generation](https://towardsdatascience.com/the-arti-canon-neural-text-generation-2a8f032c2a68)
+[^7]: [Text Generation With LSTM Recurrent Neural Networks in Python with Keras](https://machinelearningmastery.com/text-generation-lstm-recurrent-neural-networks-python-keras/)
+[^8]: [Markov Chains: How to Train Text Generation to Write Like George R. R. Martin](https://www.kdnuggets.com/2019/11/markov-chains-train-text-generation.html)
+[^9]: [How Neural Networks Are Learning to Write](https://towardsdatascience.com/how-neural-networks-are-learning-to-write-d631b249b499?gi=348999a0611a)
+[^10]: [Markov Chains Explained Visually](https://setosa.io/ev/markov-chains/)
+[^11]: [Introduction to Operation Research](https://www.amazon.com/Introduction-Operations-Research-Hillier-Lieberman/dp/0071139893)
+[^12]: [Multiple Decrement Models in Insurance](https://www.springer.com/gp/book/9788132206583)
