@@ -529,9 +529,6 @@ text_sherlock <- sherlock_clean %>%
 
 text_sherlock %>% head(30)
 ```
-```{r}
-n_distinct(text_sherlock)
-```
 
 ## Model Fitting
 
@@ -686,8 +683,6 @@ trigram_sherlock <- sherlock_clean %>%
    pull(bigram)
 
 trigram_sherlock %>% head(10)
-
-length(trigram_sherlock)
 ```
 
 Fit the data into Markov Chains. The fitting process take so much time so I save the `.Rds` file for you to access.
@@ -699,7 +694,7 @@ markov_trigram <- markovchainFit(trigram_sherlock)
 markov_trigram <- read_rds("trigram_sherlock.Rds")
 ```
 
-Create the predictive function.
+Create the predictive function and see what is the next word if we insert `I wish` .
 
 ```{r eval=FALSE}
 predictive_text <- function(text, num_word){
@@ -728,10 +723,6 @@ read_rds("output_trigram.Rds")
 ### Combine 3 Markov Chains
 
 We can combine all Markov N-grams into a single function. The benefit is that it will look for context in trigram and bigram. If the input text has 3 or more words, it will look at the last 3 words on the phrase. If the words are not identified from the trigram Markov Chains or if the phrase has only 2 words, it will look at the bigram Markov Chains instead. Finally, if the two Markov Chains failed to find the result from their respective transition matrix, we will look at the 1-gram Markov Chains to predict the next word. I have compiled it in an R script.
-
-1. Mencari kemungkinan atau state di 3-gram
-2. Kalau tidak ada, cari di 2-gram
-3. Kalau tidak ada, cari di 1-gram
 
 ```{r eval=FALSE}
 source("markov_predictive.R")
